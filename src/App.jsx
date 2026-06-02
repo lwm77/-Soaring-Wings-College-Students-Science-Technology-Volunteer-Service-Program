@@ -192,13 +192,13 @@ function App() {
 
     async function loadRegistrationsFromBackend() {
       try {
-        await checkBackendHealth()
+        const health = await checkBackendHealth()
         const items = await fetchRegistrations()
         if (!isMounted) return
 
         setRegistrations(items)
         localStorage.setItem('aoxiang_registrations', JSON.stringify(items))
-        setBackendStatus('SQLite 数据库已连接')
+        setBackendStatus(`${health.database?.type || '后端'} 数据库已连接`)
         setIsBackendConnected(true)
       } catch {
         if (!isMounted) return
@@ -586,7 +586,7 @@ function App() {
           <div>
             <p className="eyebrow">报名入口</p>
             <h2>活动报名栏</h2>
-            <p>现在已接入本地 SQLite 数据库：后端服务启动时，报名会进入数据库；后端未启动时，会自动回到浏览器本地演示模式。</p>
+            <p>现在已接入后端数据库：本地学习默认使用 SQLite，正式部署可切换 PostgreSQL；后端未启动时，会自动回到浏览器本地演示模式。</p>
           </div>
           <form className="signup-form" onSubmit={submitRegistration}>
             <label>

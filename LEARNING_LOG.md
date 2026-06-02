@@ -392,3 +392,41 @@ cd D:\学校学习\ai学习\Codex\网页开发\翱翔之翼
 ```
 
 然后再执行上面的两个命令。两个服务都要开着，网页才能连接数据库。
+## 2026-06-02：升级为可切换 PostgreSQL / SQLite 数据库
+
+这次我们把后端数据库从“只能使用 SQLite”升级为“默认 SQLite，也可以切换 PostgreSQL”。
+
+我做了什么：
+
+1. 安装 `pg`：这是 Node.js 连接 PostgreSQL 的工具包。
+2. 安装 `dotenv`：它可以读取 `.env` 文件里的数据库配置。
+3. 重写 `server/database.js`：让它根据环境变量判断使用 SQLite 还是 PostgreSQL。
+4. 重写 `server/index.js`：把接口改成异步写法，因为 PostgreSQL 是网络数据库，请求数据库需要等待返回结果。
+5. 新增 `.env.example`：告诉你正式部署时应该怎么填写 PostgreSQL 连接信息。
+6. 更新 `README.md` 和 `CHANGELOG.md`：记录这次升级和验证方法。
+
+为什么不直接删掉 SQLite：
+
+SQLite 很适合本地学习，因为不用安装复杂数据库。PostgreSQL 更适合正式部署，因为它支持多人访问、权限管理、长期运行和更复杂的数据结构。保留两种模式，可以让你本地继续学习，正式上线时再切换 PostgreSQL。
+
+你可以这样理解：
+
+```text
+本地学习：不配置 DATABASE_URL -> 自动使用 SQLite
+正式部署：配置 DATABASE_URL -> 自动使用 PostgreSQL
+```
+
+`.env` 是什么：
+
+`.env` 是“环境变量配置文件”，里面放数据库地址、端口、密码等不适合写进代码的内容。它不会上传到 GitHub，避免泄露密码。
+
+后端现在怎么判断数据库：
+
+```text
+如果存在 DATABASE_URL，并且 DATABASE_CLIENT 不是 sqlite
+  -> 使用 PostgreSQL
+否则
+  -> 使用 SQLite
+```
+
+这一步很重要，因为后续我们要做管理员后台、文章发布、活动管理、资料上传、账号权限时，都需要稳定的数据存储。现在数据库层先打好基础，后面扩展功能会更顺。
