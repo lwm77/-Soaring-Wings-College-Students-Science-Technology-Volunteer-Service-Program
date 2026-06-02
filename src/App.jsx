@@ -1,4 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  checkBackendHealth,
+  createRegistration,
+  deleteRegistrations,
+  fetchRegistrations,
+} from './api.js'
 import './App.css'
 
 const navItems = [
@@ -168,37 +174,91 @@ function App() {
   const [accountForm, setAccountForm] = useState(defaultAccountForm)
   const [loginMethod, setLoginMethod] = useState('手机号')
   const [activePlatformGroup, setActivePlatformGroup] = useState(platformGroups[0].key)
+  const [backendStatus, setBackendStatus] = useState('连接中')
+  const [isBackendConnected, setIsBackendConnected] = useState(false)
   const [accountProfile, setAccountProfile] = useState(() => {
     const stored = localStorage.getItem('aoxiang_account')
     return stored ? JSON.parse(stored) : null
   })
 
-  const totalHours = useMemo(() => registrations.length * 4, [registrations])
+  const totalHours = useMemo(
+    () => registrations.reduce((sum, item) => sum + Number(item.hours || 0), 0),
+    [registrations],
+  )
   const currentPlatformGroup = platformGroups.find((group) => group.key === activePlatformGroup) || platformGroups[0]
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadRegistrationsFromBackend() {
+      try {
+        await checkBackendHealth()
+        const items = await fetchRegistrations()
+        if (!isMounted) return
+
+        setRegistrations(items)
+        localStorage.setItem('aoxiang_registrations', JSON.stringify(items))
+        setBackendStatus('SQLite 数据库已连接')
+        setIsBackendConnected(true)
+      } catch {
+        if (!isMounted) return
+
+        setBackendStatus('本地演示模式')
+        setIsBackendConnected(false)
+      }
+    }
+
+    loadRegistrationsFromBackend()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   function updateForm(event) {
     const { name, value } = event.target
     setForm((current) => ({ ...current, [name]: value }))
   }
 
-  function submitRegistration(event) {
+  async function submitRegistration(event) {
     event.preventDefault()
     if (!form.name.trim() || !form.phone.trim()) return
 
-    const nextRegistration = {
+    const fallbackRegistration = {
       id: `AX-${Date.now()}`,
       ...form,
       status: '待审核',
       hours: 4,
       createdAt: new Date().toLocaleDateString('zh-CN'),
     }
+
+    let nextRegistration = fallbackRegistration
+
+    if (isBackendConnected) {
+      try {
+        nextRegistration = await createRegistration(form)
+      } catch {
+        setBackendStatus('本地演示模式')
+        setIsBackendConnected(false)
+      }
+    }
+
     const next = [nextRegistration, ...registrations]
     setRegistrations(next)
     localStorage.setItem('aoxiang_registrations', JSON.stringify(next))
     setForm(defaultForm)
   }
 
-  function clearRegistrations() {
+  async function clearRegistrations() {
+    if (isBackendConnected) {
+      try {
+        await deleteRegistrations()
+      } catch {
+        setBackendStatus('本地演示模式')
+        setIsBackendConnected(false)
+      }
+    }
+
     setRegistrations([])
     localStorage.removeItem('aoxiang_registrations')
     setCertificate(null)
@@ -416,7 +476,7 @@ function App() {
             </div>
             <div className="dashboard-card">
               <span>审核状态</span>
-              <strong>待接后台</strong>
+              <strong>{backendStatus}</strong>
             </div>
           </div>
           <button className="text-btn clear-btn" type="button" onClick={clearRegistrations}>
@@ -526,7 +586,7 @@ function App() {
           <div>
             <p className="eyebrow">报名入口</p>
             <h2>活动报名栏</h2>
-            <p>现在是前端演示版：信息会暂存在你浏览器的本地存储。以后接数据库后，报名会真正进入后台。</p>
+            <p>现在已接入本地 SQLite 数据库：后端服务启动时，报名会进入数据库；后端未启动时，会自动回到浏览器本地演示模式。</p>
           </div>
           <form className="signup-form" onSubmit={submitRegistration}>
             <label>

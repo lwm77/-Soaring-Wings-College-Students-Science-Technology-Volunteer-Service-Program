@@ -1,5 +1,30 @@
 # 版本记录
 
+## v0.2.0 - 2026-06-02
+
+### 新增
+
+- 新增 Express 后端服务，接口入口为 `server/index.js`。
+- 新增 SQLite 本地数据库，数据库初始化与读写逻辑在 `server/database.js`。
+- 新增活动报名接口：`GET /api/registrations`、`POST /api/registrations`、`DELETE /api/registrations`。
+- 新增健康检查接口：`GET /api/health`，用于确认后端和数据库是否正常。
+- 新增活动种子数据接口：`GET /api/activities`。
+- 前端报名栏已优先写入 SQLite 数据库；如果后端未启动，会自动回到浏览器本地演示模式。
+- 新增前端接口工具文件 `src/api.js`，集中管理前端与后端的通信。
+
+### 调整
+
+- 志愿者管理栏的“审核状态”改为显示当前后端连接状态。
+- 服务时长统计改为从报名数据中的 `hours` 字段累加，方便后续接入真实志愿时长。
+- `.gitignore` 新增 `data` 和 `.env`，避免把本地数据库和环境变量上传到 GitHub。
+
+### 验证
+
+- `npm run lint`
+- `npm run build`
+- `GET http://127.0.0.1:3001/api/health`
+- `POST http://127.0.0.1:3001/api/registrations`
+
 ## v0.1.1 - 2026-06-02
 
 ### 调整
