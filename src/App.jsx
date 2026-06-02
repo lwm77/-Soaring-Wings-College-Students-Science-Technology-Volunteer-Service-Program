@@ -25,6 +25,18 @@ const stats = [
   ['41项', '学生省级以上奖项'],
 ]
 
+const headlineNews = [
+  ['项目动态', '“微光学堂”暑期公益班持续开展', '把少儿编程、无人机、机器人体验带进乡村课堂。'],
+  ['成果展示', '乡村青少年“小小科学家”培育计划', '沉淀学生作品、课程资源、志愿者故事与媒体报道。'],
+  ['合作交流', '校地协同共建科技志愿服务阵地', '持续连接学院、社区、学校与中国科协志愿服务资源。'],
+]
+
+const heroHighlights = [
+  ['服务方向', '编程启蒙、机器人互动、无人机实践、AI 科普'],
+  ['组织能力', '课程研发、活动运营、器材管理、竞赛辅导'],
+  ['成果沉淀', '新闻报道、学生作品、志愿证书、项目材料归档'],
+]
+
 const activities = [
   {
     title: '前于居体彩“微光学堂”暑期公益班',
@@ -91,6 +103,39 @@ const platformModules = [
   ['可持续维护', '分类、标签、统一命名、年度归档、活动新闻成果互相关联、多人协作。', '长期规范'],
 ]
 
+const platformGroups = [
+  {
+    key: 'content',
+    name: '内容宣传',
+    intro: '优先面向社会公众展示项目可信度，把组织介绍、动态新闻、成果报道放在前面。',
+    items: ['首页项目概览', '项目介绍', '团队介绍', '项目历程时间轴', '成果展示', '新闻动态', '合作单位展示'],
+  },
+  {
+    key: 'archive',
+    name: '成果资料',
+    intro: '把活动、图片、视频、学生作品、媒体报道和申报材料做成可持续沉淀的资料库。',
+    items: ['活动成果页面', '图片墙', '视频展示', '学生作品展示', '志愿者故事', '获奖证书', '资料下载'],
+  },
+  {
+    key: 'service',
+    name: '报名服务',
+    intro: '服务志愿者和合作单位，承载报名、联系、证书生成、活动管理等实际流程。',
+    items: ['活动列表', '活动报名入口', '志愿者报名表单', '合作申请表单', '活动回顾', '证书生成', '联系方式展示'],
+  },
+  {
+    key: 'manage',
+    name: '后台管理',
+    intro: '正式上线后给管理员、编辑、审核人员使用，支持多人协作维护网站内容。',
+    items: ['发布/编辑文章', '上传图片和视频', '管理活动信息', '管理成果数据', '管理团队成员', '权限管理', '操作记录'],
+  },
+  {
+    key: 'growth',
+    name: '课程资源',
+    intro: '课程和器材属于平台的教学资源，放在后半段，服务真正来学习和参与的人。',
+    items: ['少儿编程学习', '机器人课程', '无人机课程', 'AI 科普课程', '器材教具', '学习单下载', '学生作品关联'],
+  },
+]
+
 const roadmapSteps = [
   ['第一阶段', '前台展示原型', '先把项目概览、活动、成果、新闻、课程、器材、加入我们等页面做完整，让网站有清晰门面。'],
   ['第二阶段', '数据与搜索', '整理活动、新闻、成果、资料的统一数据格式，加入关键词搜索、年份筛选和标签筛选。'],
@@ -122,12 +167,14 @@ function App() {
   const [certificate, setCertificate] = useState(null)
   const [accountForm, setAccountForm] = useState(defaultAccountForm)
   const [loginMethod, setLoginMethod] = useState('手机号')
+  const [activePlatformGroup, setActivePlatformGroup] = useState(platformGroups[0].key)
   const [accountProfile, setAccountProfile] = useState(() => {
     const stored = localStorage.getItem('aoxiang_account')
     return stored ? JSON.parse(stored) : null
   })
 
   const totalHours = useMemo(() => registrations.length * 4, [registrations])
+  const currentPlatformGroup = platformGroups.find((group) => group.key === activePlatformGroup) || platformGroups[0]
 
   function updateForm(event) {
     const { name, value } = event.target
@@ -235,7 +282,37 @@ function App() {
                 了解团队
               </a>
             </div>
+            <div className="hero-highlight-grid">
+              {heroHighlights.map(([title, desc]) => (
+                <article key={title}>
+                  <span>{title}</span>
+                  <p>{desc}</p>
+                </article>
+              ))}
+            </div>
           </div>
+          <aside className="hero-news-panel" aria-label="首页新闻动态">
+            <div className="hero-panel-head">
+              <span>AX NEWS / 2026</span>
+              <strong>信息动态</strong>
+            </div>
+            <div className="headline-list">
+              {headlineNews.map(([tag, title, desc], index) => (
+                <a href="#resultsNews" key={title}>
+                  <b>{String(index + 1).padStart(2, '0')}</b>
+                  <span>{tag}</span>
+                  <strong>{title}</strong>
+                  <p>{desc}</p>
+                </a>
+              ))}
+            </div>
+            <div className="hero-panel-links">
+              <a href="#resultsNews">成果新闻</a>
+              <a href="#activities">活动展示</a>
+              <a href="#redSpirit">红色学习</a>
+              <a href="#platformRoadmap">平台功能</a>
+            </div>
+          </aside>
           <div className="hero-photo">
             <img src="/media/sxx-04.jpeg" alt="志愿者指导小学生体验无人机" />
           </div>
@@ -583,9 +660,9 @@ function App() {
         <section className="content-section roadmap-section" id="platformRoadmap">
           <div className="section-heading">
             <p className="eyebrow">可持续扩展</p>
-            <h2>官网平台建设路线</h2>
+            <h2>官网平台功能入口</h2>
             <p>
-              参考中国科协官网的信息组织方式，官网不只做展示页，而是逐步建设成“新闻发布、成果沉淀、活动管理、资料下载、合作联系、后台维护、数据统计、SEO传播、安全权限”一体化平台。这里先把功能地图放出来，后续每次开发都按模块推进。
+              参考中国科协官网的信息组织方式，前半段优先放组织动态、项目介绍、成果宣传和合作信息；课程、器材、后台维护等功能放在后半段。这里把多个相近模块合并成入口，点击切换后可继续打开独立详情页。
             </p>
           </div>
           <div className="roadmap-layout">
@@ -598,16 +675,64 @@ function App() {
                 </article>
               ))}
             </div>
-            <div className="module-grid">
-              {platformModules.map(([title, desc, status], index) => (
-                <article key={title}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <h3>{title}</h3>
-                  <p>{desc}</p>
-                  <strong>{status}</strong>
-                </article>
-              ))}
+            <div className="platform-switcher">
+              <div className="switch-tabs" role="tablist" aria-label="平台功能分类">
+                {platformGroups.map((group) => (
+                  <button
+                    className={group.key === activePlatformGroup ? 'active' : ''}
+                    key={group.key}
+                    type="button"
+                    onClick={() => setActivePlatformGroup(group.key)}
+                  >
+                    {group.name}
+                  </button>
+                ))}
+              </div>
+              <article className="platform-detail">
+                <span>{currentPlatformGroup.name}</span>
+                <h3>{currentPlatformGroup.intro}</h3>
+                <div className="platform-tags">
+                  {currentPlatformGroup.items.map((item) => (
+                    <a href="#platformDetail" key={item}>
+                      {item}
+                    </a>
+                  ))}
+                </div>
+                <a className="secondary-btn detail-link" href="#platformDetail">
+                  打开{currentPlatformGroup.name}详情页
+                </a>
+              </article>
+              <details className="module-drawer">
+                <summary>查看完整功能清单</summary>
+                <div className="module-grid">
+                  {platformModules.map(([title, desc, status], index) => (
+                    <article key={title}>
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                      <h3>{title}</h3>
+                      <p>{desc}</p>
+                      <strong>{status}</strong>
+                    </article>
+                  ))}
+                </div>
+              </details>
             </div>
+          </div>
+        </section>
+
+        <section className="content-section platform-detail-page" id="platformDetail">
+          <div className="section-heading">
+            <p className="eyebrow">功能详情页</p>
+            <h2>{currentPlatformGroup.name}</h2>
+            <p>{currentPlatformGroup.intro}</p>
+          </div>
+          <div className="story-grid">
+            {currentPlatformGroup.items.map((item, index) => (
+              <article key={item}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <h3>{item}</h3>
+                <p>后续可以把“{item}”做成独立页面，接入数据、上传资料、筛选搜索和后台维护。</p>
+              </article>
+            ))}
           </div>
         </section>
 
