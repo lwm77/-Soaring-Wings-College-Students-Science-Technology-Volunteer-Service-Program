@@ -17,6 +17,15 @@ async function request(path, options) {
   return response.json()
 }
 
+function adminHeaders(token, adminName) {
+  if (!token) return {}
+
+  return {
+    'X-Admin-Token': token,
+    ...(adminName ? { 'X-Admin-Name': adminName } : {}),
+  }
+}
+
 export function checkBackendHealth() {
   return request('/health')
 }
@@ -34,6 +43,46 @@ export async function createRegistration(payload) {
   return data.item
 }
 
-export function deleteRegistrations() {
-  return request('/registrations', { method: 'DELETE' })
+export function deleteRegistrations({ token, adminName } = {}) {
+  return request('/registrations', {
+    method: 'DELETE',
+    headers: token ? adminHeaders(token, adminName) : {},
+  })
+}
+
+export async function fetchAuditLogs({ token, adminName, filters = {} }) {
+  const query = new URLSearchParams()
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      query.set(key, value)
+    }
+  })
+
+  const suffix = query.toString() ? `?${query.toString()}` : ''
+  const data = await request(`/admin/audit-logs${suffix}`, {
+    headers: adminHeaders(token, adminName),
+  })
+
+  return data.items
+}
+
+export function fetchAuditStats({ token, adminName }) {
+  return request('/admin/audit-stats', {
+    headers: adminHeaders(token, adminName),
+  })
+}
+
+export async function reviewAuditLog({ token, adminName, id, reviewStatus, reviewComment }) {
+  const data = await request(`/admin/audit-logs/${id}/review`, {
+    method: 'PATCH',
+    headers: adminHeaders(token, adminName),
+    body: JSON.stringify({
+      reviewStatus,
+      reviewComment,
+      reviewerName: adminName,
+    }),
+  })
+
+  return data.item
 }

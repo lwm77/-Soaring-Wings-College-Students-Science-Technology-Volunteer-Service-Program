@@ -1,129 +1,112 @@
 # Ubuntu 服务器部署记录
 
-本文档记录“翱翔之翼”官网平台部署到阿里云 Ubuntu ECS 的基础流程，适合作为以后重新部署、排错和学习复盘的参考。
+本文记录“翱翔之翼”官网平台部署到阿里云 Ubuntu ECS 的基础流程。它既是部署说明，也是以后排错和复盘的参考。
 
 ## 当前服务器
 
 - 公网 IP：`121.40.156.210`
 - 系统：Ubuntu 26.04 LTS
-- 登录方式：SSH，命令为 `ssh root@121.40.156.210`
+- 登录方式：`ssh root@121.40.156.210`
+- 项目目录：`/opt/aoxiang`
+- 前端发布目录：`/var/www/aoxiang`
 - 后端端口：`3001`
 - 数据库：PostgreSQL
+- 进程管理：PM2
+- 对外访问：Nginx 监听 `80` 端口，并把 `/api` 转发到 `127.0.0.1:3001`
 
-## 1. 安装基础环境
-
-```bash
-apt update
-apt upgrade -y
-apt install -y curl git nginx postgresql postgresql-contrib
-```
-
-这些命令的作用：
-
-- `apt update`：更新服务器的软件列表。
-- `apt upgrade -y`：升级服务器已安装的软件。
-- `curl`：下载 Node.js 安装脚本。
-- `git`：从 GitHub 拉取项目代码。
-- `nginx`：后续用于对外发布网站页面。
-- `postgresql`：正式数据库，用来保存报名、活动、账号等数据。
-
-## 2. 安装 Node.js
+## 1. 更新代码
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt install -y nodejs
-node -v
-npm -v
-```
-
-当前已验证版本：
-
-```text
-node v22.22.2
-npm 10.9.7
-```
-
-Node.js 用来运行后端服务，npm 用来安装项目依赖。
-
-## 3. 创建 PostgreSQL 数据库
-
-进入 PostgreSQL 管理命令行：
-
-```bash
-sudo -u postgres psql
-```
-
-执行：
-
-```sql
-CREATE DATABASE aoxiang;
-CREATE USER aoxiang_user WITH PASSWORD 'Aoxiang_2026_db!';
-GRANT ALL PRIVILEGES ON DATABASE aoxiang TO aoxiang_user;
-\q
-```
-
-补充 public schema 权限：
-
-```bash
-sudo -u postgres psql -d aoxiang -c "GRANT ALL ON SCHEMA public TO aoxiang_user;"
-```
-
-这一步是为了让后端可以自动创建数据表。
-
-## 4. 拉取项目代码
-
-```bash
-cd /opt
-git clone https://github.com/lwm77/-Soaring-Wings-College-Students-Science-Technology-Volunteer-Service-Program.git aoxiang
 cd /opt/aoxiang
+git pull
 npm install
-```
-
-`/opt/aoxiang` 是服务器上的项目目录。
-
-## 5. 配置环境变量
-
-在 `/opt/aoxiang` 中创建 `.env`：
-
-```bash
-cat > .env <<'EOF'
-DATABASE_CLIENT=postgresql
-DATABASE_URL=postgresql://aoxiang_user:Aoxiang_2026_db!@127.0.0.1:5432/aoxiang
-DATABASE_SSL=false
-PORT=3001
-EOF
 ```
 
 含义：
 
-- `DATABASE_CLIENT=postgresql`：告诉后端使用 PostgreSQL。
-- `DATABASE_URL`：数据库连接地址。
-- `DATABASE_SSL=false`：本机数据库连接不启用 SSL。
-- `PORT=3001`：后端服务运行在 3001 端口。
+- `git pull`：从 GitHub 拉取最新代码。
+- `npm install`：根据 `package-lock.json` 安装或同步依赖。
 
-## 6. 启动后端
+如果 `git pull` 提示本地文件会被覆盖，先不要乱删。常见原因是服务器上改过 `package-lock.json` 或其他文件，可以先执行：
 
 ```bash
-npm run server
+git status
 ```
 
-启动后看到：
+确认哪些文件被改动后再处理。
 
-```text
-翱翔之翼后端服务已启动：http://127.0.0.1:3001
+## 2. 配置后端环境变量
+
+编辑服务器上的 `.env`：
+
+```bash
+cd /opt/aoxiang
+nano .env
 ```
 
-说明后端服务已经跑起来。
+推荐内容：
 
-## 7. 验证后端和数据库
-
-浏览器访问：
-
-```text
-http://121.40.156.210:3001/api/health
+```env
+DATABASE_CLIENT=postgresql
+DATABASE_URL=postgresql://aoxiang_user:Aoxiang_2026_db!@127.0.0.1:5432/aoxiang
+DATABASE_SSL=false
+PORT=3001
+ADMIN_API_TOKEN=请换成你自己的长随机管理密码
 ```
 
-已验证成功返回：
+说明：
+
+- `DATABASE_CLIENT=postgresql`：使用 PostgreSQL，而不是本地 SQLite。
+- `DATABASE_URL`：数据库连接地址。
+- `DATABASE_SSL=false`：同一台服务器本机连接数据库，不需要 SSL。
+- `PORT=3001`：后端服务运行端口。
+- `ADMIN_API_TOKEN`：管理后台接口令牌。它相当于后台接口钥匙，正式上线必须换成别人猜不到的长字符串。
+
+## 3. 构建并发布前端
+
+```bash
+npm run build
+rm -rf /var/www/aoxiang/*
+cp -r dist/* /var/www/aoxiang/
+```
+
+含义：
+
+- `npm run build`：把 React/Vite 项目打包成浏览器可以直接访问的静态文件。
+- `rm -rf /var/www/aoxiang/*`：清空旧的前端文件。
+- `cp -r dist/* /var/www/aoxiang/`：把新前端文件复制给 Nginx 发布。
+
+## 4. 重启后端
+
+如果 PM2 已经有 `aoxiang-api`：
+
+```bash
+pm2 restart aoxiang-api --update-env
+pm2 save
+```
+
+如果第一次启动：
+
+```bash
+pm2 start server/index.js --name aoxiang-api
+pm2 startup
+pm2 save
+```
+
+含义：
+
+- `pm2 restart ... --update-env`：重启后端，并读取新的 `.env`。
+- `pm2 save`：保存当前进程列表，服务器重启后可以自动恢复。
+
+## 5. 验证网站和数据库
+
+验证后端健康：
+
+```bash
+curl http://121.40.156.210/api/health
+```
+
+成功时应看到类似：
 
 ```json
 {
@@ -136,76 +119,80 @@ http://121.40.156.210:3001/api/health
 }
 ```
 
-这说明：
-
-- 公网可以访问服务器后端。
-- 后端服务已经启动。
-- 后端已经连接到 PostgreSQL，而不是 SQLite。
-- 阿里云安全组的 `3001` 端口已经放行成功。
-
-## 8. 下一阶段
-
-后续还需要继续配置：
-
-- 用 PM2 管理后端进程，让后端关闭 SSH 后也能继续运行。
-- 用 Nginx 发布前端页面。
-- 用 Nginx 把 `/api` 请求转发到 `127.0.0.1:3001`。
-- 开放并使用 `80` 端口访问网站。
-- 后续绑定域名后配置 HTTPS。
-
-## 9. 前端公网访问验证
-
-已验证浏览器可以打开：
+验证前端页面：
 
 ```text
 http://121.40.156.210
 ```
 
-页面成功显示“阜阳师范大学中科协‘翱翔之翼’大学生志愿者服务项目”官网首页。
+能打开首页，说明 Nginx 前端发布正常。
 
-这说明：
+## 6. 验证审计日志和管理接口
 
-- 前端文件已经构建成功。
-- Nginx 已经能把 `dist` 中的静态页面发布到公网。
-- 阿里云安全组的 `80` 端口已经可以访问。
-- 当前已经完成第一轮“前端页面 + 后端接口 + PostgreSQL 数据库”的上线闭环。
+先确认管理统计接口能访问。把下面的 `你的管理员令牌` 换成 `.env` 里的 `ADMIN_API_TOKEN`：
 
-接下来建议继续检查：
-
-```text
-http://121.40.156.210/api/health
+```bash
+curl -H "X-Admin-Token: 你的管理员令牌" http://121.40.156.210/api/admin/audit-stats
 ```
 
-如果也能返回 PostgreSQL 状态，说明 Nginx 的 `/api` 反向代理也已经配置成功。
+成功时会返回类似：
 
-## 10. 前端接口地址修正
-
-为了让公网网页正确调用后端接口，前端默认接口地址已经从本地开发地址：
-
-```text
-http://127.0.0.1:3001/api
+```json
+{
+  "total": 3,
+  "pending": 1,
+  "approved": 1,
+  "needsReview": 1,
+  "rejected": 0
+}
 ```
 
-调整为同域地址：
+新增一条测试报名，这会自动生成审计日志：
 
-```text
-/api
+```bash
+curl -X POST http://121.40.156.210/api/registrations \
+  -H "Content-Type: application/json" \
+  -d '{"name":"测试志愿者","college":"计算机与信息工程学院","phone":"13800000000","activity":"接口验证活动","role":"教学志愿者"}'
 ```
 
-这样访问 `http://121.40.156.210` 时，网页里的接口请求会走：
+查询这条审计日志：
 
-```text
-http://121.40.156.210/api/...
+```bash
+curl -H "X-Admin-Token: 你的管理员令牌" "http://121.40.156.210/api/admin/audit-logs?keyword=测试志愿者"
 ```
 
-再由 Nginx 转发到后端：
+如果看到 `registration.create`，说明“用户操作被记录”已经成功。
 
-```text
-http://127.0.0.1:3001/api/...
+审阅某条日志，把 `1` 换成实际日志 ID：
+
+```bash
+curl -X PATCH http://121.40.156.210/api/admin/audit-logs/1/review \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: 你的管理员令牌" \
+  -H "X-Admin-Name: 管理员" \
+  -d '{"reviewStatus":"已通过","reviewComment":"验证通过"}'
 ```
 
-因此下一次重新构建前端并发布 `dist` 后，需要重点验证：
+如果返回 `reviewStatus: "已通过"`，说明审阅流程成功。
 
-```text
-http://121.40.156.210/api/health
+## 7. 常见问题
+
+如果访问 `/api/admin/audit-stats` 返回 `401`：
+
+- 检查请求头有没有写 `X-Admin-Token`。
+- 检查 token 是否和服务器 `.env` 里的 `ADMIN_API_TOKEN` 一样。
+- 修改 `.env` 后要执行 `pm2 restart aoxiang-api --update-env`。
+
+如果 `/api/health` 显示 SQLite：
+
+- 检查 `.env` 里的 `DATABASE_CLIENT` 和 `DATABASE_URL`。
+- 重启后端时必须带 `--update-env`。
+
+如果前端能打开但接口不通：
+
+- 检查 Nginx 是否把 `/api` 转发到 `127.0.0.1:3001`。
+- 检查 PM2 里的 `aoxiang-api` 是否 `online`：
+
+```bash
+pm2 list
 ```
