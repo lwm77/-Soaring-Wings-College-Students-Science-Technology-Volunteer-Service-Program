@@ -735,3 +735,113 @@ http://121.40.156.210/api/health
 - 本地开发地址：常见是 `http://127.0.0.1:3001`。
 - 公网上线地址：应该尽量使用同域 `/api`，这样以后绑定域名也不用改前端代码。
 - `VITE_API_BASE_URL` 仍然保留，如果以后有特殊部署方式，还可以通过环境变量覆盖默认接口地址。
+
+## 2026-06-03：服务器更新代码时遇到 git pull 冲突
+
+### 这次遇到的问题
+你在服务器执行 `git pull` 时，终端提示：
+
+```text
+error: Your local changes to the following files would be overwritten by merge:
+  package-lock.json
+Please commit your changes or stash them before you merge.
+Aborting
+```
+
+这说明服务器上的 `package-lock.json` 被 `npm install` 改动过了，而 GitHub 上也有新版 `package-lock.json`。Git 为了避免直接覆盖本地文件，所以暂停了合并。
+
+### 这次怎么处理
+服务器上的 `package-lock.json` 不是我们要保存的正式内容，只是安装依赖时自动生成的变化，所以可以让它恢复成 GitHub 仓库里的版本：
+
+```bash
+git restore package-lock.json
+git pull
+```
+
+然后再重新安装依赖、构建前端、发布到 Nginx 目录。
+
+### 另一个小问题
+你在 Linux 终端里直接输入了：
+
+```bash
+http://121.40.156.210
+http://121.40.156.210/api/health
+```
+
+终端会把它们当成“要执行的命令”，所以报错 `No such file or directory`。
+
+正确验证方法有两种：
+
+- 在浏览器地址栏打开网址。
+- 在服务器终端用 `curl` 命令访问网址。
+
+例如：
+
+```bash
+curl http://121.40.156.210/api/health
+```
+
+`curl` 的意思是“用命令行访问一个网址，并把返回内容显示出来”。
+
+## 2026-06-03：完成公网部署闭环验证
+
+### 这次你完成了什么
+
+你在阿里云 Ubuntu 服务器上完成了代码更新、前端构建、静态文件发布，并用浏览器和命令行验证了后端接口。
+
+你执行的关键命令是：
+
+```bash
+cd /opt/aoxiang
+git pull
+npm install
+npm run build
+rm -rf /var/www/aoxiang/*
+cp -r dist/* /var/www/aoxiang/
+curl http://121.40.156.210/api/health
+```
+
+### 每一步是什么意思
+
+`cd /opt/aoxiang` 是进入服务器上的项目目录。
+
+`git pull` 是从 GitHub 拉取最新代码。如果显示 `Already up to date.`，说明服务器上的代码已经和 GitHub 一致。
+
+`npm install` 是根据 `package.json` 和 `package-lock.json` 安装项目依赖。它显示 `0 vulnerabilities`，说明这次依赖检查没有发现已知安全漏洞。
+
+`npm run build` 是把 React/Vite 前端项目打包成正式上线用的静态文件，生成在 `dist` 目录里。
+
+`rm -rf /var/www/aoxiang/*` 是清空 Nginx 正在对外提供访问的旧网页文件。
+
+`cp -r dist/* /var/www/aoxiang/` 是把刚构建好的新网页复制到 Nginx 的网站目录。
+
+`curl http://121.40.156.210/api/health` 是用命令行访问后端健康检查接口，确认接口能从公网访问。
+
+### 验证结果
+
+接口返回了：
+
+```json
+{"ok":true,"service":"aoxiang-api","database":{"type":"PostgreSQL","host":"127.0.0.1:5432"}}
+```
+
+这说明当前上线链路已经打通：
+
+```text
+公网 IP 121.40.156.210
+-> Nginx 返回前端页面
+-> 前端通过 /api 请求后端
+-> Nginx 把 /api 转发给 Express 后端
+-> Express 后端连接 PostgreSQL 数据库
+```
+
+### 你现在学到的核心知识
+
+一个真正上线的网站通常不是只有一个页面文件，而是由几部分协同工作：
+
+- 前端：用户看到的页面。
+- 后端：处理报名、登录、证书生成、新闻发布等数据逻辑。
+- 数据库：保存志愿者、活动、报名、成果、账号等数据。
+- Nginx：负责把公网访问分发给前端页面和后端接口。
+
+下一步要做的是让后端长期稳定运行。现在如果后端是用 `npm run server` 手动启动的，关闭 SSH 窗口后它可能会停止。我们会用 PM2 管理后端进程，让它自动守护和开机自启。
