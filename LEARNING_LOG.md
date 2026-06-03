@@ -845,3 +845,109 @@ curl http://121.40.156.210/api/health
 - Nginx：负责把公网访问分发给前端页面和后端接口。
 
 下一步要做的是让后端长期稳定运行。现在如果后端是用 `npm run server` 手动启动的，关闭 SSH 窗口后它可能会停止。我们会用 PM2 管理后端进程，让它自动守护和开机自启。
+
+## 2026-06-03：PM2 提示 Script already launched
+
+### 这次看到的现象
+
+你执行：
+
+```bash
+pm2 start server/index.js --name aoxiang-api
+```
+
+终端提示：
+
+```text
+[PM2][ERROR] Script already launched, add -f option to force re-execution
+```
+
+### 这是什么意思
+
+这不是失败，而是 PM2 已经发现同一个后端脚本 `server/index.js` 正在运行，并且名字也是 `aoxiang-api`。为了避免重复启动两个相同的后端服务，PM2 阻止了第二次启动。
+
+### 正确处理方式
+
+这种情况下不需要重新启动，直接查看进程列表并保存即可：
+
+```bash
+pm2 list
+pm2 save
+curl http://121.40.156.210/api/health
+```
+
+如果以后修改了后端代码，需要让 PM2 重新加载新代码，可以执行：
+
+```bash
+pm2 restart aoxiang-api
+```
+
+`pm2 restart` 的意思是重启指定的后台进程，适合代码更新后让新代码生效。
+
+## 2026-06-03：PM2 后端守护验证成功
+
+### 这次验证结果
+
+你执行了：
+
+```bash
+pm2 list
+pm2 save
+curl http://121.40.156.210/api/health
+```
+
+`pm2 list` 显示：
+
+```text
+name         status
+ aoxiang-api online
+```
+
+这说明 `aoxiang-api` 后端服务已经被 PM2 托管，并且当前正在运行。
+
+`curl http://121.40.156.210/api/health` 返回了：
+
+```json
+{"ok":true,"service":"aoxiang-api","database":{"type":"PostgreSQL","host":"127.0.0.1:5432"}}
+```
+
+这说明公网接口仍然正常，后端和 PostgreSQL 数据库连接也正常。
+
+### 这一步为什么重要
+
+之前用 `npm run server` 启动后端，属于“临时启动”。如果 SSH 窗口关闭、终端中断，后端可能会停止。
+
+现在用 PM2 后，后端变成了“后台守护进程”。它的好处是：
+
+- 可以在后台持续运行。
+- 进程异常退出时可以自动拉起。
+- `pm2 save` 会保存当前进程列表。
+- 配合 `pm2 startup` 后，服务器重启后也能自动恢复服务。
+
+### 后续常用 PM2 命令
+
+查看后端运行状态：
+
+```bash
+pm2 list
+```
+
+查看后端日志：
+
+```bash
+pm2 logs aoxiang-api
+```
+
+更新后端代码后重启服务：
+
+```bash
+pm2 restart aoxiang-api
+```
+
+停止后端服务：
+
+```bash
+pm2 stop aoxiang-api
+```
+
+现在，网站已经从“能访问”升级到了“可以稳定运行”。
